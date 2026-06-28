@@ -1,5 +1,6 @@
 from setuptools import find_packages, setup
-
+from glob import glob
+import os
 package_name = 'stm32_serial'
 
 setup(
@@ -10,6 +11,11 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        # launch 文件相关配置
+        (os.path.join('share', package_name, 'launch'), glob(os.path.join('launch', '*.py')))
+        # ('share/' + package_name, glob("launch/*.launch.py")),
+        # ('share/' + package_name, glob("launch/xml/*.launch.xml")),
+        # ('share/' + package_name, glob("launch/yaml/*.launch.yaml"))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
