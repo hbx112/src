@@ -143,8 +143,8 @@ class Guscar_Base(Node):
         # 3. 二维旋转矩阵积分计算全局位移
         cos_yaw = math.cos(self.pos_yaw)
         sin_yaw = math.sin(self.pos_yaw)
-        dx = (vx_cal * cos_yaw - vy_cal * sin_yaw) * dt*2
-        dy = (vx_cal * sin_yaw + vy_cal * cos_yaw) * dt*2
+        dx = (vx_cal * cos_yaw - vy_cal * sin_yaw) * dt
+        dy = (vx_cal * sin_yaw + vy_cal * cos_yaw) * dt
         # d_yaw = vz_cal * dt
 
         # 4. 累加至全局位置
