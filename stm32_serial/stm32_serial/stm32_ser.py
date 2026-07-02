@@ -135,16 +135,16 @@ class Guscar_Base(Node):
         # 2. 速度校正
         vx_cal = vx * self.odom_x_scale
         vy_cal = vy * self.odom_y_scale
-        if vz >= 0:
-            vz_cal = vz * self.odom_z_scale_pos
-        else:
-            vz_cal = vz * self.odom_z_scale_neg
+        # if vz >= 0:
+        #     vz_cal = vz * self.odom_z_scale_pos
+        # else:
+        #     vz_cal = vz * self.odom_z_scale_neg
 
         # 3. 二维旋转矩阵积分计算全局位移
         cos_yaw = math.cos(self.pos_yaw)
         sin_yaw = math.sin(self.pos_yaw)
-        dx = (vx_cal * cos_yaw - vy_cal * sin_yaw) * dt
-        dy = (vx_cal * sin_yaw + vy_cal * cos_yaw) * dt
+        dx = (vx_cal * cos_yaw - vy_cal * sin_yaw) * dt*2
+        dy = (vx_cal * sin_yaw + vy_cal * cos_yaw) * dt*2
         # d_yaw = vz_cal * dt
 
         # 4. 累加至全局位置
