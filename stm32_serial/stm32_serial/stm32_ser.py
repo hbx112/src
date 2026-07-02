@@ -41,8 +41,8 @@ class Guscar_Base(Node):
         # 上一帧时间戳，用于计算采样间隔dt
         self.last_time = self.get_clock().now()
         # 里程校正系数，
-        self.odom_x_scale = 1.0
-        self.odom_y_scale = 1.0
+        self.odom_x_scale = 2.0
+        self.odom_y_scale = 2.0
         self.odom_z_scale_pos = 1.0
         self.odom_z_scale_neg = 1.0
 
@@ -135,10 +135,10 @@ class Guscar_Base(Node):
         # 2. 速度校正
         vx_cal = vx * self.odom_x_scale
         vy_cal = vy * self.odom_y_scale
-        # if vz >= 0:
-        #     vz_cal = vz * self.odom_z_scale_pos
-        # else:
-        #     vz_cal = vz * self.odom_z_scale_neg
+        if vz >= 0:
+            vz_cal = vz * self.odom_z_scale_pos
+        else:
+            vz_cal = vz * self.odom_z_scale_neg
 
         # 3. 二维旋转矩阵积分计算全局位移
         cos_yaw = math.cos(self.pos_yaw)
