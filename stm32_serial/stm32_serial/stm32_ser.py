@@ -8,6 +8,14 @@ from geometry_msgs.msg import Twist
 # from sensor_msgs.msg import Imu
 import struct
 from rclpy.clock import Clock
+from nav_msgs.msg import Odometry
+# 四元数转换工具
+from tf2_geometry_msgs import tf2_geometry_msgs
+from geometry_msgs.msg import Quaternion
+import math
+from tf_transformations import quaternion_from_euler
+
+from geometry_msgs.msg import Twist, PoseWithCovariance, TwistWithCovariance
 
 #实现自定义节点类 ，且继承Node这个父类
 class Guscar_Base(Node):
@@ -23,8 +31,20 @@ class Guscar_Base(Node):
 
         # 创建下位机速度发布
         self.guscar_base_vel_pub = self.create_publisher(Twist,'/guscar/get_vel',10)
+        self.odom_pub = self.create_publisher(Odometry, "/odom", 10)
         # 创建下位机 IMU 数据发布
         # self.guscar_base_imu_pub = self.create_publisher(Imu,'/guscar/imu_raw',10)
+        # 累计位置 x(m), y(m), yaw(rad)
+        self.pos_x = 0.0
+        self.pos_y = 0.0
+        self.pos_yaw = 0.0
+        # 上一帧时间戳，用于计算采样间隔dt
+        self.last_time = self.get_clock().now()
+        # 里程校正系数，
+        self.odom_x_scale = 1.0
+        self.odom_y_scale = 1.0
+        self.odom_z_scale_pos = 1.0
+        self.odom_z_scale_neg = 1.0
 
         # 连接下位机串口
         self.connect_ser()
@@ -92,7 +112,7 @@ class Guscar_Base(Node):
         z_float = z_int / 1000.0
         yaw_float = yaw_int/1000.0
 
-        print(f"解析成功 x={x_float:.3f}, y={y_float:.3f}, z={z_float:.3f},yaw={yaw_float:.3f}")
+        # print(f"解析成功 x={x_float:.3f}, y={y_float:.3f}, z={z_float:.3f},yaw={yaw_float:.3f}")
 
         # 封装Twist消息发布
         twist = Twist()
@@ -101,6 +121,77 @@ class Guscar_Base(Node):
         twist.angular.z = z_float
         twist.linear.z = yaw_float
         self.guscar_base_vel_pub.publish(twist)
+
+        self.update_odometry(x_float, y_float, z_float,yaw_float)
+
+    def update_odometry(self, vx, vy, vz,yaw):
+        
+        # 1. 计算时间间隔 dt
+        current_time = self.get_clock().now()
+        dt = (current_time - self.last_time).nanoseconds / 1e9  # 转秒
+        self.last_time = current_time
+        if dt <= 0:
+            return
+        # 2. 速度校正
+        vx_cal = vx * self.odom_x_scale
+        vy_cal = vy * self.odom_y_scale
+        if vz >= 0:
+            vz_cal = vz * self.odom_z_scale_pos
+        else:
+            vz_cal = vz * self.odom_z_scale_neg
+
+        # 3. 二维旋转矩阵积分计算全局位移
+        cos_yaw = math.cos(self.pos_yaw)
+        sin_yaw = math.sin(self.pos_yaw)
+        dx = (vx_cal * cos_yaw - vy_cal * sin_yaw) * dt
+        dy = (vx_cal * sin_yaw + vy_cal * cos_yaw) * dt
+        # d_yaw = vz_cal * dt
+
+        # 4. 累加至全局位置
+        self.pos_x += dx
+        self.pos_y += dy
+        self.pos_yaw = yaw
+
+        # 5. 构造标准Odometry消息
+        odom_msg = Odometry()
+        odom_msg.header.stamp = current_time.to_msg()
+        odom_msg.header.frame_id = "odom"       # 父坐标系
+        odom_msg.child_frame_id = "base_footprint" # 子坐标系
+
+        # 位置填充
+        odom_msg.pose.pose.position.x = self.pos_x
+        odom_msg.pose.pose.position.y = self.pos_y
+        odom_msg.pose.pose.position.z = 0.0
+        
+        # yaw欧拉角转四元数
+        q = quaternion_from_euler(0.0, 0.0, self.pos_yaw)
+        odom_msg.pose.pose.orientation.x = q[0]
+        odom_msg.pose.pose.orientation.y = q[1]
+        odom_msg.pose.pose.orientation.z = q[2]
+        odom_msg.pose.pose.orientation.w = q[3]
+        
+
+        # 当前小车局部速度
+        odom_msg.twist.twist.linear.x = vx_cal
+        odom_msg.twist.twist.linear.y = vy_cal
+        odom_msg.twist.twist.angular.z = vz_cal
+
+        # 简易协方差（可按需调整）
+        if abs(vx_cal) < 0.001 and abs(vy_cal) < 0.001 and abs(vz_cal) < 0.001:
+            # 静止，误差小
+            pose_cov = [1e-6]*36
+            twist_cov = [1e-6]*36
+        else:
+            # 运动，误差大
+            pose_cov = [1e-3]*36
+            twist_cov = [1e-3]*36
+        odom_msg.pose.covariance = pose_cov
+        odom_msg.twist.covariance = twist_cov
+
+        print(f"里程计 x={self.pos_x:.3f}, y={self.pos_y:.3f}, z={self.pos_yaw:.3f}")
+
+        # 发布里程计
+        self.odom_pub.publish(odom_msg)
 
     def send(self):
         cmd = [0xb8,0xe6,0x02]
