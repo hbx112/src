@@ -84,19 +84,22 @@ class Guscar_Base(Node):
         x_int = struct.unpack('>h', data[2:4])[0]
         y_int = struct.unpack('>h', data[4:6])[0]
         z_int = struct.unpack('>h', data[6:8])[0]
+        yaw_int = struct.unpack('>h', data[8:10])[0]
 
         # 除以1000还原实际速度
         x_float = x_int / 1000.0
         y_float = y_int / 1000.0
         z_float = z_int / 1000.0
+        yaw_float = yaw_int/1000.0
 
-        print(f"解析成功 x={x_float:.3f}, y={y_float:.3f}, z_ang={z_float:.3f}")
+        print(f"解析成功 x={x_float:.3f}, y={y_float:.3f}, z={z_float:.3f},yaw={yaw_float:.3f}")
 
         # 封装Twist消息发布
         twist = Twist()
         twist.linear.x = x_float
         twist.linear.y = y_float
         twist.angular.z = z_float
+        twist.linear.z = yaw_float
         self.guscar_base_vel_pub.publish(twist)
 
     def send(self):
